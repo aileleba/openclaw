@@ -79,6 +79,12 @@ const setValue = command === "set" ? String(args[commandIndex + 2] || "") : "";
 
 if (command === "sessions" && args[commandIndex + 1] === "ensure") {
   writeLog({ kind: "ensure", agent, args, sessionName: ensureName });
+  if (process.env.MOCK_ACPX_ENSURE_PLAIN_NO_SESSION === "1") {
+    process.stderr.write(
+      "⚠ No acpx session found (searched up to /tmp/mock-project).\\nCreate one: acpx codex sessions new\\n",
+    );
+    process.exit(1);
+  }
   if (process.env.MOCK_ACPX_ENSURE_EXIT_1 === "1") {
     emitJson({
       jsonrpc: "2.0",
@@ -189,6 +195,22 @@ if (command === "status") {
   writeLog({ kind: "status", agent, args, sessionName: sessionFromOption });
   if (process.env.MOCK_ACPX_STATUS_SIGNAL) {
     process.kill(process.pid, process.env.MOCK_ACPX_STATUS_SIGNAL);
+  }
+  if (process.env.MOCK_ACPX_STATUS_PLAIN_NO_SESSION === "1") {
+    process.stderr.write(
+      "⚠ No acpx session found (searched up to /tmp/mock-project).\\nCreate one: acpx codex sessions new\\n",
+    );
+    process.exit(1);
+  }
+  if (process.env.MOCK_ACPX_STATUS_NO_SESSION === "1") {
+    emitJson({
+      error: {
+        code: "NO_SESSION",
+        message: "No matching session",
+        retryable: false,
+      },
+    });
+    process.exit(0);
   }
   const status = process.env.MOCK_ACPX_STATUS_STATUS || (sessionFromOption ? "alive" : "no-session");
   const summary = process.env.MOCK_ACPX_STATUS_SUMMARY || "";

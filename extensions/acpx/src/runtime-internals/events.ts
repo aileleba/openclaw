@@ -1,6 +1,7 @@
 import { safeParseJsonWithSchema } from "openclaw/plugin-sdk/extension-shared";
 import { z } from "zod";
 import type { AcpRuntimeEvent, AcpSessionUpdateTag } from "../../runtime-api.js";
+import { parseControlJsonError } from "./control-errors.js";
 import {
   asOptionalBoolean,
   asOptionalString,
@@ -22,7 +23,10 @@ const AcpxErrorEventSchema = z.object({
 
 export function toAcpxErrorEvent(value: unknown): AcpxErrorEvent | null {
   const parsed = AcpxErrorEventSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  if (parsed.success) {
+    return parsed.data;
+  }
+  return parseControlJsonError(value);
 }
 
 export function parseJsonLines(value: string): AcpxJsonObject[] {

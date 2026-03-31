@@ -99,6 +99,34 @@ function formatAcpxExitMessage(params: {
   return `acpx exited with code ${params.exitCode ?? "unknown"}`;
 }
 
+function parsePlainTextNoSessionEvent(params: {
+  stderr: string;
+  exitCode: number | null | undefined;
+  signal?: NodeJS.Signals | null;
+}): AcpxJsonObject | null {
+  if (!didAcpxProcessExitWithFailure(params)) {
+    return null;
+  }
+  const message = formatAcpxExitMessage(params).trim();
+  if (!message) {
+    return null;
+  }
+  const normalized = message.toLowerCase();
+  const hintsMissingSession =
+    normalized.includes("no acpx session found") ||
+    normalized.includes("no matching session") ||
+    (normalized.includes("create one:") && normalized.includes("sessions new"));
+  if (!hintsMissingSession) {
+    return null;
+  }
+  return {
+    type: "error",
+    code: "NO_SESSION",
+    message,
+    retryable: false,
+  };
+}
+
 function didAcpxProcessExitWithFailure(params: {
   exitCode: number | null | undefined;
   signal?: NodeJS.Signals | null;
@@ -704,6 +732,18 @@ export class AcpxRuntime implements AcpRuntime {
       ignoreNoSession: true,
       signal: input.signal,
     });
+    const errorEvent = events.map((event) => toAcpxErrorEvent(event)).find(Boolean) ?? null;
+    if (errorEvent?.code?.trim().toUpperCase() === "NO_SESSION") {
+      return {
+        summary: "status=no-session",
+        details: {
+          status: "no-session",
+          error: errorEvent.message,
+          ...(errorEvent.code ? { code: errorEvent.code } : {}),
+          ...(typeof errorEvent.retryable === "boolean" ? { retryable: errorEvent.retryable } : {}),
+        },
+      };
+    }
     const detail = events.find((event) => !toAcpxErrorEvent(event)) ?? events[0];
     if (!detail) {
       return {
@@ -1032,6 +1072,14 @@ export class AcpxRuntime implements AcpRuntime {
         signal: result.signal,
       })
     ) {
+      const plainTextNoSession = parsePlainTextNoSessionEvent({
+        stderr: result.stderr,
+        exitCode: result.code,
+        signal: result.signal,
+      });
+      if (params.ignoreNoSession && plainTextNoSession) {
+        return [plainTextNoSession];
+      }
       throw new AcpRuntimeError(
         params.fallbackCode,
         formatAcpxExitMessage({

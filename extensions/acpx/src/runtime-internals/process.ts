@@ -58,6 +58,11 @@ const DEFAULT_RUNTIME: SpawnRuntime = {
   execPath: process.execPath,
 };
 
+function hasEnvKeyCaseInsensitive(env: NodeJS.ProcessEnv, key: string): boolean {
+  const expected = key.toLowerCase();
+  return Object.keys(env).some((entry) => entry.toLowerCase() === expected);
+}
+
 function isExecutableFile(filePath: string, platform: NodeJS.Platform): boolean {
   try {
     const stat = statSync(filePath);
@@ -210,6 +215,11 @@ export function spawnWithResolvedCommand(
     params.stripProviderAuthEnvVars ? listKnownProviderAuthEnvVarNames() : [],
   );
   childEnv.OPENCLAW_SHELL = "acp";
+  // ACP agents often shell out through npm/npx. Default to `error` so project-local
+  // pnpm-only settings (for example `node-linker`) do not leak as user-facing warnings.
+  if (!hasEnvKeyCaseInsensitive(childEnv, "npm_config_loglevel")) {
+    childEnv.npm_config_loglevel = "error";
+  }
 
   return spawn(resolved.command, resolved.args, {
     cwd: params.cwd,

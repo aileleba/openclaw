@@ -276,6 +276,17 @@ describe("AcpxRuntime", () => {
     });
   });
 
+  it("creates a fresh named session when ensure/status report plain-text missing-session guidance", async () => {
+    await expectSessionEnsureFallback({
+      sessionKey: "agent:codex:acp:ensure-fallback-plain-no-session",
+      env: {
+        MOCK_ACPX_ENSURE_PLAIN_NO_SESSION: "1",
+        MOCK_ACPX_STATUS_PLAIN_NO_SESSION: "1",
+      },
+      expectNewAfterStatus: true,
+    });
+  });
+
   it("serializes text plus image attachments into ACP prompt blocks", async () => {
     const { runtime, logPath } = await createMockRuntimeFixture();
 
@@ -439,6 +450,52 @@ describe("AcpxRuntime", () => {
       code: "-32000",
       retryable: undefined,
     });
+  });
+
+  it("maps structured NO_SESSION status results to status=no-session", async () => {
+    const { runtime } = await createMockRuntimeFixture();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:status-no-session",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    process.env.MOCK_ACPX_STATUS_NO_SESSION = "1";
+    try {
+      const status = await runtime.getStatus({ handle });
+      expect(status.summary).toBe("status=no-session");
+      expect(status.details).toMatchObject({
+        status: "no-session",
+        code: "NO_SESSION",
+        error: "No matching session",
+        retryable: false,
+      });
+    } finally {
+      delete process.env.MOCK_ACPX_STATUS_NO_SESSION;
+    }
+  });
+
+  it("maps plain-text missing-session status failures to status=no-session", async () => {
+    const { runtime } = await createMockRuntimeFixture();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:status-plain-no-session",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    process.env.MOCK_ACPX_STATUS_PLAIN_NO_SESSION = "1";
+    try {
+      const status = await runtime.getStatus({ handle });
+      expect(status.summary).toBe("status=no-session");
+      expect(String(status.details?.error ?? "")).toContain("No acpx session found");
+      expect(status.details).toMatchObject({
+        status: "no-session",
+        code: "NO_SESSION",
+        retryable: false,
+      });
+    } finally {
+      delete process.env.MOCK_ACPX_STATUS_PLAIN_NO_SESSION;
+    }
   });
 
   it("maps acpx permission-denied exits to actionable guidance", async () => {

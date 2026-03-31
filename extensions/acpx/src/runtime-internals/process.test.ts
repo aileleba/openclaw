@@ -312,6 +312,7 @@ describe("spawnAndCollect", () => {
     hf?: string;
     openclaw?: string;
     shell?: string;
+    npmLoglevel?: string;
   };
 
   function stubProviderAuthEnv(env: Record<string, string>) {
@@ -333,7 +334,7 @@ describe("spawnAndCollect", () => {
       command: process.execPath,
       args: [
         "-e",
-        `process.stdout.write(JSON.stringify({openai:process.env.${openAiEnvKey},github:process.env.${githubEnvKey},hf:process.env.${hfEnvKey},openclaw:process.env.OPENCLAW_API_KEY,shell:process.env.OPENCLAW_SHELL}))`,
+        `process.stdout.write(JSON.stringify({openai:process.env.${openAiEnvKey},github:process.env.${githubEnvKey},hf:process.env.${hfEnvKey},openclaw:process.env.OPENCLAW_API_KEY,shell:process.env.OPENCLAW_SHELL,npmLoglevel:process.env.npm_config_loglevel ?? process.env.NPM_CONFIG_LOGLEVEL}))`,
       ],
       cwd: process.cwd(),
       stripProviderAuthEnvVars: options?.stripProviderAuthEnvVars,
@@ -428,5 +429,16 @@ describe("spawnAndCollect", () => {
     expect(parsed.hf).toBe("hf-secret");
     expect(parsed.openclaw).toBe("keep-me");
     expect(parsed.shell).toBe("acp");
+  });
+
+  it("defaults spawned ACP children to npm log level error", async () => {
+    const parsed = await collectSpawnedEnvSnapshot();
+    expect(parsed.npmLoglevel).toBe("error");
+  });
+
+  it("preserves explicit npm log level overrides for spawned ACP children", async () => {
+    vi.stubEnv("NPM_CONFIG_LOGLEVEL", "notice");
+    const parsed = await collectSpawnedEnvSnapshot();
+    expect(parsed.npmLoglevel).toBe("notice");
   });
 });
